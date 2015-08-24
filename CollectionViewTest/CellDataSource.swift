@@ -57,13 +57,12 @@ class UICollectionViewDataSourceWrapper: NSObject, UICollectionViewDataSource {
     func swift_collectionView(collectionView: UICollectionView, cellForItemAtIndexPath indexPath: NSIndexPath) -> UICollectionViewCell {
         fatalError("not implemented")
     }
-    
 }
 
 class SimpleDataSource<T: CellDataSource> : UICollectionViewDataSourceWrapper, DataRefreshable {
     private let isRefreshedProp = MutableProperty(false)
     var isRefreshed: PropertyOf<Bool> { return PropertyOf(isRefreshedProp) }
-    var cellData = MutableProperty<[T]>([])
+    let cellData = MutableProperty<[T]>([])
     
     func bindRefreshControl(signal: Signal<(), NoError>) {
         isRefreshedProp <~ signal |> map{ _ in false }
@@ -83,14 +82,14 @@ class SimpleDataSource<T: CellDataSource> : UICollectionViewDataSourceWrapper, D
     
 }
 
+
 protocol SimpleDataSourceDelegate {
     typealias CellDataType : CellDataSource
     static func loadData() -> [CellDataType]
 }
 
-func delegate<T: CellDataSource, S: SimpleDataSource<T>, D: SimpleDataSourceDelegate where D.CellDataType == T>(dataSource: S, delegateType: D.Type) {
-    let producer = dataSource// |> map{ _ in delegateType.loadData() }
-    let p = delegateType.loadData()
+func delegate<T, D: SimpleDataSourceDelegate where D.CellDataType == T>(dataSource: SimpleDataSource<T>, delegateType: D.Type) {
+    dataSource.cellData <~ dataSource.isRefreshed.producer |> filter { !$0 } |> map{ _ in delegateType.loadData() }
 }
 
 
@@ -100,8 +99,7 @@ class TemplateSegmentDataSource : NSObject, SegmentDataSource {
     private var templates: [TemplateItem] = []
     
     
-    func bindRefreshControl(signal: Signal<(), NoError>)
-    {
+    func bindRefreshControl(signal: Signal<(), NoError>) {
         signal.observe(next: { [unowned self] in self.doRefresh() })
     }
     private func doRefresh(){
